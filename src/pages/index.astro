@@ -1,0 +1,65 @@
+---
+import Base from '../layouts/Base.astro';
+import Scoreboard from '../components/Scoreboard.astro';
+import EuropeMap from '../components/EuropeMap.astro';
+import CompanyCard from '../components/CompanyCard.astro';
+import ConfidenceLegend from '../components/ConfidenceLegend.astro';
+import { allCompanies, isScored } from '../lib/companies';
+import { CATEGORIES } from '../lib/dimensions';
+import { url } from '../lib/url';
+import { SITE } from '../config';
+
+const companies = await allCompanies();
+const done = companies.filter(isScored);
+const pending = companies.filter((c) => !isScored(c));
+---
+
+<Base active="home" description={SITE.tagline}>
+  <section style="padding-top:8px">
+    <p class="eyebrow">Equity research, venture lens</p>
+    <h1>Early-stage European companies with real technology, assessed like a VC would.</h1>
+    <p class="lede">
+      I screen pre-seed European companies across health, robotics, food and agriculture, energy and space, and software. For each one I
+      write an investment thesis covering the product, the founders, the facts and figures, the risks and a clear verdict, with every
+      claim tagged by how reliable its source is.
+    </p>
+    <p style="display:flex;gap:10px;flex-wrap:wrap">
+      <a class="btn" href={url('/companies/')}>Browse the companies</a>
+      <a class="btn btn-ghost" href={url('/methodology/')}>Read the methodology</a>
+    </p>
+    <div class="stats">
+      <div class="stat"><b>{companies.length}</b><span>companies shortlisted</span></div>
+      <div class="stat"><b>{done.length}</b><span>deep dives published</span></div>
+      <div class="stat"><b>{CATEGORIES.length}</b><span>sector categories</span></div>
+      <div class="stat"><b>6</b><span>weighted criteria</span></div>
+    </div>
+  </section>
+
+  <Scoreboard companies={companies} />
+
+  <section>
+    <h2>Where they are</h2>
+    <p class="muted">Headquarters of every company on the list. Click a dot to open its page.</p>
+    <EuropeMap companies={companies} />
+  </section>
+
+  {
+    pending.length > 0 && (
+      <section>
+        <h2>In the pipeline</h2>
+        <p class="muted">Shortlisted companies whose deep dive is still to come. Each has a short profile with the open questions I intend to answer.</p>
+        <div class="grid grid-3">
+          {pending.map((c) => (
+            <CompanyCard company={c} />
+          ))}
+        </div>
+      </section>
+    )
+  }
+
+  <section>
+    <h2>How to read the evidence</h2>
+    <p class="muted">Every fact in a thesis carries a tag, so you can see at a glance what is proven and what is only a company claim.</p>
+    <ConfidenceLegend />
+  </section>
+</Base>

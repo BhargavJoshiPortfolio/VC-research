@@ -1,0 +1,118 @@
+---
+import Base from '../../layouts/Base.astro';
+import CompanyCard from '../../components/CompanyCard.astro';
+import { allCompanies } from '../../lib/companies';
+import { CATEGORIES, VERDICTS } from '../../lib/dimensions';
+
+const companies = await allCompanies();
+const countries = [...new Set(companies.map((c) => c.data.hq.country))].sort();
+---
+
+<Base title="Companies" active="companies" description="All shortlisted European pre-seed companies, filterable by category, verdict, country and round size.">
+  <p class="eyebrow">Companies</p>
+  <h1>The shortlist</h1>
+  <p class="lede">Filter by category, verdict, country or round size. Companies marked "Research pending" have a Phase 1 profile and a deep dive to come.</p>
+
+  <div class="filters" id="filters">
+    <div class="chips" data-group="category">
+      <span class="chip-label">Category</span>
+      {
+        CATEGORIES.map((c) => (
+          <button type="button" class="chip" aria-pressed="false" data-value={c.id}>
+            <i class="dot" style={`background:${c.color}`} />{c.short}
+          </button>
+        ))
+      }
+    </div>
+    <div class="chips" data-group="verdict">
+      <span class="chip-label">Verdict</span>
+      {
+        VERDICTS.map((v) => (
+          <button type="button" class="chip" aria-pressed="false" data-value={v.id}>{v.id}</button>
+        ))
+      }
+      <button type="button" class="chip" aria-pressed="false" data-value="pending">Research pending</button>
+    </div>
+    <div class="chips">
+      <label class="chip-label" for="f-country">Country</label>
+      <select id="f-country">
+        <option value="">All countries</option>
+        {countries.map((c) => <option value={c}>{c}</option>)}
+      </select>
+      <label class="chip-label" for="f-round" style="min-width:auto;margin-left:12px">Round size</label>
+      <select id="f-round">
+        <option value="">Any size</option>
+        <option value="lt2">Under about 2M euros</option>
+        <option value="2to4">About 2M to 4M euros</option>
+        <option value="gt4">Over about 4M euros</option>
+      </select>
+      <button type="button" class="btn btn-ghost btn-small" id="f-clear">Clear filters</button>
+      <span class="small muted" id="f-count" aria-live="polite" />
+    </div>
+  </div>
+
+  <div class="grid grid-3" id="cards">
+    {companies.map((c) => <CompanyCard company={c} filterable />)}
+  </div>
+  <p class="empty" id="f-empty" hidden>No companies match these filters.</p>
+</Base>
+
+<script>
+  const cards = Array.from(document.querySelectorAll<HTMLElement>('#cards .co-card'));
+  const state: { category: Set<string>; verdict: Set<string>; country: string; round: string } = {
+    category: new Set(),
+    verdict: new Set(),
+    country: '',
+    round: '',
+  };
+  const count = document.getElementById('f-count')!;
+  const empty = document.getElementById('f-empty')!;
+
+  function apply() {
+    let shown = 0;
+    cards.forEach((card) => {
+      const d = card.dataset;
+      const ok =
+        (!state.category.size || state.category.has(d.category!)) &&
+        (!state.verdict.size || state.verdict.has(d.verdict!)) &&
+        (!state.country || d.country === state.country) &&
+        (!state.round || d.round === state.round);
+      card.hidden = !ok;
+      if (ok) shown++;
+    });
+    count.textContent = `${shown} of ${cards.length} shown`;
+    empty.hidden = shown > 0;
+  }
+
+  document.querySelectorAll<HTMLElement>('.chips[data-group]').forEach((group) => {
+    const key = group.dataset.group as 'category' | 'verdict';
+    group.querySelectorAll<HTMLButtonElement>('.chip').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const v = btn.dataset.value!;
+        const on = btn.getAttribute('aria-pressed') !== 'true';
+        btn.setAttribute('aria-pressed', String(on));
+        on ? state[key].add(v) : state[key].delete(v);
+        apply();
+      });
+    });
+  });
+  document.getElementById('f-country')!.addEventListener('change', (e) => {
+    state.country = (e.target as HTMLSelectElement).value;
+    apply();
+  });
+  document.getElementById('f-round')!.addEventListener('change', (e) => {
+    state.round = (e.target as HTMLSelectElement).value;
+    apply();
+  });
+  document.getElementById('f-clear')!.addEventListener('click', () => {
+    state.category.clear();
+    state.verdict.clear();
+    state.country = '';
+    state.round = '';
+    document.querySelectorAll('.chip[aria-pressed]').forEach((b) => b.setAttribute('aria-pressed', 'false'));
+    (document.getElementById('f-country') as HTMLSelectElement).value = '';
+    (document.getElementById('f-round') as HTMLSelectElement).value = '';
+    apply();
+  });
+  apply();
+</script>

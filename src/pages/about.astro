@@ -1,0 +1,51 @@
+---
+import Base from '../layouts/Base.astro';
+import { SITE, DISCLAIMER } from '../config';
+import { url } from '../lib/url';
+---
+
+<Base title="About" active="about" description={`About ${SITE.name}: who wrote it, why, and how to get in touch.`}>
+  <p class="eyebrow">About</p>
+  <h1>About this research</h1>
+  <div class="prose">
+    <p class="lede">
+      I built this to practise the work an early-stage investor does: finding companies before they are obvious, understanding the
+      product and the people, and committing to a view with the reasoning on show.
+    </p>
+    <h2>Who</h2>
+    <p>
+      {SITE.author}.
+      {SITE.linkedin && <span> <a href={SITE.linkedin} rel="noopener">LinkedIn</a>.</span>}
+      {SITE.github && <span> <a href={SITE.github} rel="noopener">GitHub</a>.</span>}
+      {SITE.contactEmail && <span> <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a>.</span>}
+    </p>
+    <h2>What this is</h2>
+    <p>
+      Independent desk research on pre-seed European companies with strong technology or product, written from the perspective of a venture
+      investor in Europe or the US. The <a href={url('/methodology/')}>methodology</a> explains how companies are chosen and judged and the
+      <a href={url('/scorecard/')}>scorecard</a> shows the weights. Everything is open to challenge.
+    </p>
+    <h2>For founders and companies</h2>
+    <p>
+      The theses are written from public information only. I have not spoken to the companies, seen their financials or visited their
+      customers, and each page says so. If a fact is wrong or out of date, please tell me and I will fix it promptly. A company being
+      listed here, or receiving a particular verdict, is a view on the evidence available to me, not a judgement on the people.
+    </p>
+    <h2>For investors and recruiters</h2>
+    <p>
+      The one-page summary on each deep dive prints cleanly to PDF. If you disagree with a weighting or a verdict, the sliders on the
+      home page show how the ranking changes, and I am happy to talk through the reasoning.
+    </p>
+    {
+      SITE.aiDisclosure && (
+        <>
+          <h2>How it was made</h2>
+          <p>{SITE.aiDisclosure}</p>
+        </>
+      )
+    }
+    <h2>Limits</h2>
+    <p>{DISCLAIMER}</p>
+    <p><a href={url('/changelog/')}>See the changelog</a>.</p>
+  </div>
+</Base>

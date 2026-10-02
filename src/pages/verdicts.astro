@@ -1,0 +1,70 @@
+---
+import Base from '../layouts/Base.astro';
+import VerdictPill from '../components/VerdictPill.astro';
+import { allCompanies, isScored, scoreOf } from '../lib/companies';
+import { categoryColor, VERDICTS, fmt } from '../lib/dimensions';
+import { url } from '../lib/url';
+
+const all = await allCompanies();
+const done = all.filter(isScored).sort((a, b) => (scoreOf(b) ?? 0) - (scoreOf(a) ?? 0));
+const pending = all.filter((c) => !isScored(c));
+---
+
+<Base title="Verdicts" active="verdicts" description="Every verdict at a glance: company, score, recommendation and the one-line reason.">
+  <p class="eyebrow">Verdicts</p>
+  <h1>Every verdict at a glance</h1>
+  <p class="lede">The recommendation and the single most important reason, for each company with a finished deep dive.</p>
+
+  <div class="table-wrap" style="margin-top:24px">
+    <table>
+      <thead>
+        <tr><th>Company</th><th>Category</th><th>Score</th><th>Verdict</th><th>The one-line reason</th></tr>
+      </thead>
+      <tbody>
+        {
+          done.length === 0 && (
+            <tr><td colspan="5" class="muted">The first deep dives are in progress.</td></tr>
+          )
+        }
+        {
+          done.map((c) => (
+            <tr>
+              <td><a href={url(`/companies/${c.id}/`)}><strong>{c.data.name}</strong></a></td>
+              <td><span class="cat"><i class="dot" style={`background:${categoryColor(c.data.category)}`} />{c.data.category}</span></td>
+              <td class="num">{fmt(scoreOf(c)!)}</td>
+              <td><VerdictPill verdict={c.data.verdict} /></td>
+              <td>{c.data.verdictLine}</td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </div>
+
+  {
+    pending.length > 0 && (
+      <>
+        <h2>Still to come</h2>
+        <p class="muted">Shortlisted, with the deep dive in progress. No verdict yet.</p>
+        <div class="table-wrap">
+          <table>
+            <tbody>
+              {pending.map((c) => (
+                <tr>
+                  <td style="width:22%"><a href={url(`/companies/${c.id}/`)}><strong>{c.data.name}</strong></a></td>
+                  <td style="width:26%"><span class="cat"><i class="dot" style={`background:${categoryColor(c.data.category)}`} />{c.data.category}</span></td>
+                  <td>{c.data.offering}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </>
+    )
+  }
+
+  <h2>The verdict scale</h2>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr))">
+    {VERDICTS.map((v) => <div class="card"><span class={`pill pill-${v.slug}`}>{v.id}</span><p class="small muted" style="margin:10px 0 0">{v.meaning}</p></div>)}
+  </div>
+</Base>

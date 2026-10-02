@@ -1,0 +1,150 @@
+---
+import Base from '../../../layouts/Base.astro';
+import RadarChart from '../../../components/RadarChart.astro';
+import VerdictPill from '../../../components/VerdictPill.astro';
+import { allCompanies, isScored, scoreOf, scoreValues } from '../../../lib/companies';
+import { categoryColor, DIMENSIONS, type Scores } from '../../../lib/dimensions';
+import { url } from '../../../lib/url';
+import { SITE, DISCLAIMER } from '../../../config';
+
+export async function getStaticPaths() {
+  const list = (await allCompanies()).filter(isScored);
+  return list.map((c) => ({ params: { slug: c.id }, props: { company: c } }));
+}
+
+const { company: c } = Astro.props;
+const d = c.data;
+const score = scoreOf(c)!;
+const color = categoryColor(d.category);
+const updated = d.updated.toISOString().slice(0, 10);
+---
+
+<Base title={`${d.name}: one-page summary`} bare ogImage={`${c.id}.png`} description={d.verdictLine ?? d.offering}>
+  <div class="onepager">
+    <p class="no-print toolbar">
+      <button class="btn" type="button" id="print-btn">Print or save as PDF</button>
+      <a class="btn btn-ghost" href={url(`/companies/${c.id}/`)}>Back to full thesis</a>
+      <span class="small muted">Tip: in the print dialog choose "Save as PDF", paper size A4, margins default, and tick "Background graphics".</span>
+    </p>
+
+    <header class="op-head">
+      <div>
+        <p class="eyebrow">{SITE.name} · {d.category}</p>
+        <h1>{d.name}</h1>
+        <p class="op-offer">{d.offering}</p>
+        <p class="op-meta small">
+          {d.hq.city}, {d.hq.country} · {d.round.label}, {d.round.date} · Lead: {d.round.lead}{d.founded ? ` · Founded ${d.founded}` : ''}
+        </p>
+      </div>
+      <div class="op-verdict">
+        <VerdictPill verdict={d.verdict} />
+        <p class="score-big num" style="margin:6px 0 0">{score.toFixed(1)}<span class="muted" style="font-size:0.9rem"> / 5</span></p>
+        <p class="small muted" style="margin:0">weighted score</p>
+      </div>
+    </header>
+
+    <p class="op-verdictline"><strong>Verdict:</strong> {d.verdictLine}</p>
+
+    <div class="op-grid">
+      <section>
+        <h2>The case in three lines</h2>
+        <p><strong>Insight.</strong> {d.caseSummary?.insight}</p>
+        <p><strong>Why it can be large.</strong> {d.caseSummary?.scale}</p>
+        <p><strong>Why this team, now.</strong> {d.caseSummary?.team}</p>
+
+        <h2>Key facts</h2>
+        <table>
+          <tbody>
+            {
+              d.keyFacts?.map((f) => (
+                <tr>
+                  <td style="width:34%"><strong>{f.label}</strong></td>
+                  <td>{f.value} {f.tag && <i class={`conf conf-${f.tag}`}>{f.tag}</i>}</td>
+                </tr>
+              ))
+            }
+          </tbody>
+        </table>
+      </section>
+      <section>
+        <div class="card" style="padding:12px">
+          <RadarChart series={[{ label: d.name, values: scoreValues(c), color }]} size={300} />
+          <table class="op-scores">
+            <tbody>
+              {
+                DIMENSIONS.map((dim) => (
+                  <tr>
+                    <td>{dim.label}</td>
+                    <td class="num">{(d.scores as Scores)[dim.key].toFixed(1)}</td>
+                    <td class="num muted">{dim.weight}%</td>
+                  </tr>
+                ))
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <div class="op-grid">
+      <section>
+        <h2>What must be true</h2>
+        <ol>{d.mustBeTrue?.map((m) => <li>{m}</li>)}</ol>
+      </section>
+      <section>
+        <h2>Main risks</h2>
+        <ul>{d.topRisks?.map((m) => <li>{m}</li>)}</ul>
+      </section>
+    </div>
+
+    <footer class="op-foot small muted">
+      <p style="margin:0">
+        Full thesis, sources and confidence tags: {SITE.name}, company page for {d.name}. Last updated {updated}. {SITE.author}.
+      </p>
+      <p style="margin:4px 0 0">{DISCLAIMER}</p>
+    </footer>
+  </div>
+</Base>
+
+<style is:global>
+  .onepager { width: min(860px, 100% - 32px); margin: 24px auto 48px; }
+  .onepager h1 { margin-bottom: 4px; }
+  .onepager h2 { font-size: 1.05rem; margin: 1.1em 0 0.4em; padding-bottom: 4px; border-bottom: 1px solid var(--rule); }
+  .onepager p, .onepager li { font-size: 0.93rem; }
+  .toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .op-head { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; border-bottom: 2px solid var(--text); padding-bottom: 12px; }
+  .op-offer { font-size: 1.05rem !important; margin-bottom: 6px; }
+  .op-meta { color: var(--muted); margin: 0; }
+  .op-verdict { text-align: right; flex: none; }
+  .op-verdictline { margin: 12px 0 0; padding: 8px 12px; background: var(--surface-2); border-radius: 8px; }
+  .op-grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 28px; align-items: start; }
+  .op-scores { font-size: 0.82rem; margin-top: 6px; }
+  .op-scores td { padding: 4px 8px; }
+  .op-foot { border-top: 1px solid var(--rule); margin-top: 22px; padding-top: 10px; }
+  .onepager table { font-size: 0.85rem; }
+  @media (max-width: 700px) { .op-grid { grid-template-columns: 1fr; } .op-head { flex-direction: column; } .op-verdict { text-align: left; } }
+  @media print {
+    @page { size: A4; margin: 10mm; }
+    html, body { background: #fff; }
+    .onepager { width: 100%; margin: 0; }
+    .onepager p, .onepager li { font-size: 8.8pt; line-height: 1.4; margin-bottom: 0.5em; }
+    .onepager h2 { font-size: 10pt; margin: 0.7em 0 0.3em; }
+    .onepager h1 { font-size: 19pt; margin: 0; }
+    .onepager .eyebrow { margin-bottom: 0.2em; font-size: 7.5pt; }
+    .op-offer { font-size: 9.8pt !important; margin-bottom: 3px; }
+    .op-grid { grid-template-columns: 1.35fr 1fr; gap: 14px; }
+    .op-head { flex-direction: row; padding-bottom: 8px; }
+    .op-verdict { text-align: right; }
+    .op-verdictline { margin-top: 8px; padding: 6px 10px; }
+    .onepager td { padding: 3px 7px; font-size: 8.3pt; }
+    .onepager .card { padding: 6px; }
+    .onepager .radar { max-width: 230px; margin: 0 auto; }
+    .onepager .score-big { font-size: 1.6rem; }
+    .op-foot { margin-top: 10px; padding-top: 6px; font-size: 7.5pt; }
+    .op-foot p { font-size: 7.5pt !important; }
+  }
+</style>
+
+<script>
+  document.getElementById('print-btn')?.addEventListener('click', () => window.print());
+</script>

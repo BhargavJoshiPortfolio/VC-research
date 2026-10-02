@@ -1,0 +1,133 @@
+---
+import Base from '../layouts/Base.astro';
+import { allCompanies, isScored } from '../lib/companies';
+import { CATEGORIES, categoryColor } from '../lib/dimensions';
+import { url } from '../lib/url';
+
+const companies = await allCompanies();
+const byName = (n: string) => companies.find((c) => c.data.name === n)!;
+const link = (n: string) => ({ name: n, href: url(`/companies/${byName(n).id}/`), done: isScored(byName(n)) });
+
+const themes = [
+  {
+    title: 'Physical AI and robotics',
+    body: 'Robot software has raced ahead of hardware and deployment. One company attacks how robot bodies are made, the other the commercial wrapper that lets factories adopt humanoids without owning the risk.',
+    companies: ['Allonic', 'Motion'],
+  },
+  {
+    title: 'AI where the work is physical',
+    body: 'Applied AI aimed at industries that run on phone calls, paper and spreadsheets rather than screens: farms and food producers.',
+    companies: ['Tellia', 'Backbone'],
+  },
+  {
+    title: 'Dual-use and sovereignty',
+    body: 'Technologies with defence and civil demand, supported by European moves toward strategic independence in space and energy.',
+    companies: ['ORiS', 'Telura'],
+  },
+  {
+    title: 'Sustainability with a business case',
+    body: 'Cutting waste, pesticides and idle capacity where the economics, not only the regulation, favour the new approach.',
+    companies: ['Mycoverse', 'Depotcharge', 'Telura'],
+  },
+  {
+    title: 'Platform biotech and medtech',
+    body: 'Science-led companies with a platform and a first asset. Evidence is milestone-based and capital needs are high.',
+    companies: ['Immitra Bio', 'Klona Biotech'],
+  },
+  {
+    title: 'Infrastructure software for regulated markets',
+    body: 'One API or system in place of several fragmented vendors, with founders who have done it before.',
+    companies: ['finperks', 'Backbone'],
+  },
+];
+
+const byCategory = CATEGORIES.map((cat) => ({ ...cat, n: companies.filter((c) => c.data.category === cat.id).length }));
+const countries = Object.entries(
+  companies.reduce<Record<string, number>>((m, c) => ((m[c.data.hq.country] = (m[c.data.hq.country] || 0) + 1), m), {}),
+).sort((a, b) => b[1] - a[1]);
+const max = Math.max(...byCategory.map((c) => c.n), 1);
+---
+
+<Base title="Insights" active="insights" description="Cross-portfolio themes: where the shortlisted companies cluster and which might suit US or European investors.">
+  <p class="eyebrow">Insights</p>
+  <h1>Patterns across the portfolio</h1>
+  <p class="lede">
+    Themes that connect the shortlist, and a first read on where each company might sit with US or European investors. These are
+    preliminary and will be revised as the deep dives are finished.
+  </p>
+
+  <h2>Themes</h2>
+  <div class="grid grid-3">
+    {
+      themes.map((t) => (
+        <div class="card">
+          <h3 style="margin-top:0">{t.title}</h3>
+          <p class="muted">{t.body}</p>
+          <p class="small" style="margin:0">
+            {t.companies.map((n, i) => {
+              const l = link(n);
+              return (
+                <>
+                  <a href={l.href}>{l.name}</a>{i < t.companies.length - 1 ? ', ' : ''}
+                </>
+              );
+            })}
+          </p>
+        </div>
+      ))
+    }
+  </div>
+
+  <h2>Where the shortlist sits</h2>
+  <div class="two-col">
+    <div class="card">
+      <p class="eyebrow">By category</p>
+      {
+        byCategory.map((c) => (
+          <div style="display:grid;grid-template-columns:150px 1fr 24px;gap:10px;align-items:center;margin-bottom:8px">
+            <span class="cat"><i class="dot" style={`background:${c.color}`} />{c.short}</span>
+            <span class="bar"><i style={`width:${(c.n / max) * 100}%;background:${c.color}`} /></span>
+            <span class="num">{c.n}</span>
+          </div>
+        ))
+      }
+    </div>
+    <div class="card">
+      <p class="eyebrow">By country</p>
+      {
+        countries.map(([name, n]) => (
+          <div style="display:grid;grid-template-columns:150px 1fr 24px;gap:10px;align-items:center;margin-bottom:8px">
+            <span>{name}</span>
+            <span class="bar"><i style={`width:${(n / countries[0][1]) * 100}%`} /></span>
+            <span class="num">{n}</span>
+          </div>
+        ))
+      }
+    </div>
+  </div>
+
+  <h2>US and European investor fit (preliminary)</h2>
+  <p class="muted">A first judgement, to be tested company by company. It reflects my reading of public information, not an investor's stated view.</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Group</th><th>Companies</th><th>Why</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>Most obviously US-relevant</strong></td>
+          <td>Tellia, Klona Biotech, Allonic, ORiS, Telura</td>
+          <td>Already operating in the US (Tellia), a US lead investor (Klona), the AI and robotics community behind it (Allonic), dual-use space (ORiS), US appetite for next-generation geothermal (Telura).</td>
+        </tr>
+        <tr>
+          <td><strong>Strong technology, capital-intensive</strong></td>
+          <td>Klona Biotech, Immitra Bio, Mycoverse, Allonic, Telura</td>
+          <td>Need preclinical data, trials or pilot lines. The next rounds will turn on technical milestones.</td>
+        </tr>
+        <tr>
+          <td><strong>Business-model and traction stories</strong></td>
+          <td>Motion, Depotcharge, Backbone, finperks</td>
+          <td>Lower technical risk. Value depends on unit economics, network effects and differentiation.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</Base>

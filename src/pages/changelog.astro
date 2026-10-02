@@ -1,0 +1,21 @@
+---
+import Base from '../layouts/Base.astro';
+import { CHANGELOG } from '../data/changelog';
+---
+
+<Base title="Changelog" description="What changed on this site and when.">
+  <p class="eyebrow">Changelog</p>
+  <h1>What changed, and when</h1>
+  <p class="lede">Pre-seed facts go stale quickly, so every update to a thesis, score or fact is logged here.</p>
+  <ol style="list-style:none;padding:0;margin:32px 0 0;max-width:46rem">
+    {
+      CHANGELOG.map((e) => (
+        <li class="card" style="margin-bottom:12px">
+          <p class="small muted num" style="margin:0 0 4px">{e.date}</p>
+          <p style="margin:0 0 4px"><strong>{e.title}</strong></p>
+          <p class="muted" style="margin:0">{e.detail}</p>
+        </li>
+      ))
+    }
+  </ol>
+</Base>

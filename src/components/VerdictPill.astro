@@ -1,0 +1,9 @@
+---
+import { verdictSlug } from '../lib/dimensions';
+interface Props {
+  verdict?: string;
+}
+const { verdict } = Astro.props;
+---
+
+<span class={`pill pill-${verdictSlug(verdict)}`}>{verdict ?? 'Research pending'}</span>

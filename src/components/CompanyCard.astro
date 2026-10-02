@@ -1,0 +1,34 @@
+---
+import { categoryColor, fmt } from '../lib/dimensions';
+import { scoreOf, type Company } from '../lib/companies';
+import { url } from '../lib/url';
+import VerdictPill from './VerdictPill.astro';
+
+interface Props {
+  company: Company;
+  filterable?: boolean;
+}
+const { company: c, filterable = false } = Astro.props;
+const s = scoreOf(c);
+const roundBand = c.data.round.eurM < 2 ? 'lt2' : c.data.round.eurM <= 4 ? '2to4' : 'gt4';
+---
+
+<a
+  class="card co-card"
+  href={url(`/companies/${c.id}/`)}
+  data-category={c.data.category}
+  data-verdict={c.data.verdict ?? 'pending'}
+  data-country={c.data.hq.country}
+  data-round={roundBand}
+  data-filterable={filterable ? 'true' : undefined}
+>
+  <span class="cat"><i class="dot" style={`background:${categoryColor(c.data.category)}`} />{c.data.subsector}</span>
+  <h3>{c.data.name}</h3>
+  <p class="muted" style="margin:0">{c.data.offering}</p>
+  <p class="small muted" style="margin:0">{c.data.hq.city}, {c.data.hq.country} · {c.data.round.label}</p>
+  <p style="margin:0;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <VerdictPill verdict={c.data.verdict} />
+    {s !== null && <span class="small num muted">Score {fmt(s)} / 5</span>}
+    {c.data.aiNative && <span class="small muted">AI-native</span>}
+  </p>
+</a>

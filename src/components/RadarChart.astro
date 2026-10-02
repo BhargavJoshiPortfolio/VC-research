@@ -1,0 +1,11 @@
+---
+import { radarSVG, type RadarSeries } from '../lib/radar';
+interface Props {
+  series: RadarSeries[];
+  size?: number;
+  labels?: boolean;
+}
+const { series, size = 320, labels = true } = Astro.props;
+---
+
+<Fragment set:html={radarSVG(series, { size, labels })} />

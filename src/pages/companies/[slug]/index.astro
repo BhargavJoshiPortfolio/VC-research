@@ -1,0 +1,122 @@
+---
+import { render } from 'astro:content';
+import Base from '../../../layouts/Base.astro';
+import RadarChart from '../../../components/RadarChart.astro';
+import VerdictPill from '../../../components/VerdictPill.astro';
+import ConfidenceLegend from '../../../components/ConfidenceLegend.astro';
+import { allCompanies, isScored, scoreOf, scoreValues } from '../../../lib/companies';
+import { categoryColor, DIMENSIONS, fmt, type Scores } from '../../../lib/dimensions';
+import { url } from '../../../lib/url';
+import { SITE } from '../../../config';
+
+export async function getStaticPaths() {
+  const list = await allCompanies();
+  return list.map((c) => ({ params: { slug: c.id }, props: { company: c } }));
+}
+
+const { company: c } = Astro.props;
+const { Content, headings } = await render(c);
+const scored = isScored(c);
+const score = scoreOf(c);
+const toc = headings.filter((h) => h.depth === 2);
+const color = categoryColor(c.data.category);
+const updated = c.data.updated.toISOString().slice(0, 10);
+---
+
+<Base
+  title={c.data.name}
+  description={c.data.verdictLine ?? c.data.offering}
+  ogImage={`${c.id}.png`}
+  active="companies"
+>
+  <article>
+    <header class="company-head">
+      <p class="eyebrow"><a href={url('/companies/')} style="color:inherit">Companies</a> / {c.data.category}</p>
+      <h1>{c.data.name}</h1>
+      <p class="lede" style="margin-bottom:8px">{c.data.offering}</p>
+      <p style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:0">
+        <VerdictPill verdict={c.data.verdict} />
+        <span class="cat"><i class="dot" style={`background:${color}`} />{c.data.subsector}</span>
+        {c.data.aiNative && <span class="small muted">AI-native</span>}
+      </p>
+      <div class="company-meta">
+        <span>{c.data.hq.city}, {c.data.hq.country}{c.data.hq.note ? ` (${c.data.hq.note})` : ''}</span>
+        <span>{c.data.round.label}, {c.data.round.date}</span>
+        <span>Lead: {c.data.round.lead}</span>
+        {c.data.founded && <span>Founded {c.data.founded}</span>}
+        <span>Updated {updated}</span>
+        {c.data.website && <a href={c.data.website} rel="noopener">Company website</a>}
+      </div>
+    </header>
+
+    <div class="company-layout">
+      <div class="prose">
+        {
+          !scored && (
+            <div class="pending-banner">
+              <strong>Deep dive in progress.</strong> This is the Phase 1 profile: what the company says it does, who is behind it and
+              the questions I will test. The full thesis with scorecard and verdict will follow, using the
+              <a href={url('/methodology/')}>same methodology</a> as the published deep dives.
+            </div>
+          )
+        }
+        {scored && <ConfidenceLegend />}
+        {scored && <div style="height:20px" />}
+        <Content />
+
+        <aside class="card founders-note no-print">
+          <strong>Note to founders.</strong> This is independent desk research built from public sources. If anything here is wrong or out
+          of date, please tell me and I will correct it promptly.
+          {
+            SITE.contactEmail && (
+              <span>
+                {' '}Contact: <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a>.
+              </span>
+            )
+          }
+          {
+            SITE.linkedin && (
+              <span>
+                {' '}Or reach me on <a href={SITE.linkedin} rel="noopener">LinkedIn</a>.
+              </span>
+            )
+          }
+        </aside>
+      </div>
+
+      <aside class="sidebar">
+        {
+          scored && (
+            <div class="card">
+              <p class="eyebrow">Weighted score</p>
+              <p class="score-big num" style="margin:0 0 4px">{fmt(score!)}<span class="muted" style="font-size:1rem"> / 5</span></p>
+              <RadarChart series={[{ label: c.data.name, values: scoreValues(c), color }]} size={300} />
+              <dl class="kv small" style="margin-top:8px">
+                {DIMENSIONS.map((d) => (
+                  <>
+                    <dt>{d.short}</dt>
+                    <dd class="num">{(c.data.scores as Scores)[d.key].toFixed(1)} <span class="muted">({d.weight}%)</span></dd>
+                  </>
+                ))}
+              </dl>
+            </div>
+          )
+        }
+        <div class="card no-print">
+          {
+            scored && (
+              <p style="margin:0 0 10px;display:grid;gap:8px">
+                <a class="btn" href={url(`/companies/${c.id}/onepager/`)}>One-page summary (print to PDF)</a>
+                <a class="btn btn-ghost" href={url(`/compare/?a=${c.id}`)}>Compare with another company</a>
+              </p>
+            )
+          }
+          <p class="eyebrow" style="margin-top:6px">On this page</p>
+          <ul class="toc">
+            {toc.map((h) => <li><a href={`#${h.slug}`}>{h.text}</a></li>)}
+          </ul>
+        </div>
+      </aside>
+    </div>
+  </article>
+</Base>

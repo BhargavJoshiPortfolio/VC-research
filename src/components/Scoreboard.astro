@@ -1,0 +1,141 @@
+---
+import { DIMENSIONS, weightedScore, categoryColor, verdictSlug, fmt, type Scores } from '../lib/dimensions';
+import { isScored, type Company } from '../lib/companies';
+import { url } from '../lib/url';
+
+interface Props {
+  companies: Company[];
+}
+const { companies } = Astro.props;
+const scored = companies.filter(isScored);
+const rows = scored
+  .map((c) => ({ c, score: weightedScore(c.data.scores as Scores) }))
+  .sort((a, b) => b.score - a.score);
+
+const payload = scored.map((c) => ({
+  slug: c.id,
+  name: c.data.name,
+  category: c.data.category,
+  color: categoryColor(c.data.category),
+  verdict: c.data.verdict,
+  vslug: verdictSlug(c.data.verdict),
+  scores: c.data.scores,
+  href: url(`/companies/${c.id}/`),
+}));
+const dims = DIMENSIONS.map((d) => ({ key: d.key, label: d.label, weight: d.weight }));
+---
+
+<section class="scoreboard" id="scoreboard" aria-labelledby="scoreboard-h">
+  <h2 id="scoreboard-h">Scoreboard</h2>
+  <p class="muted">
+    Companies with a finished deep dive, ranked by weighted score. Move the sliders to change how much each criterion matters and watch
+    the ranking respond. Verdicts are judgements made at the default weights, so a ranking that flips with a different weighting is
+    itself informative.
+  </p>
+
+  {
+    scored.length === 0 ? (
+      <p class="empty card">The first deep dives are in progress.</p>
+    ) : (
+      <>
+        <div class="card" style="margin-bottom:16px">
+          <div class="sliders" id="sb-sliders">
+            {dims.map((d) => (
+              <div class="slider">
+                <label for={`w-${d.key}`}>
+                  <span>{d.label}</span>
+                  <span class="num" id={`wv-${d.key}`}>{d.weight}%</span>
+                </label>
+                <input type="range" id={`w-${d.key}`} data-key={d.key} min="0" max="50" step="1" value={d.weight} />
+              </div>
+            ))}
+          </div>
+          <p style="margin:12px 0 0">
+            <button type="button" class="btn btn-ghost btn-small" id="sb-reset">Reset to default weights</button>
+            <span class="small muted" id="sb-note" style="margin-left:10px" aria-live="polite" />
+          </p>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Company</th>
+                <th>Category</th>
+                <th>Score</th>
+                <th>Verdict</th>
+              </tr>
+            </thead>
+            <tbody id="sb-body">
+              {rows.map(({ c, score }, i) => (
+                <tr>
+                  <td class="rank-cell">{i + 1}</td>
+                  <td><a href={url(`/companies/${c.id}/`)}><strong>{c.data.name}</strong></a></td>
+                  <td><span class="cat"><i class="dot" style={`background:${categoryColor(c.data.category)}`} />{c.data.category}</span></td>
+                  <td class="num">{fmt(score)} / 5</td>
+                  <td><span class={`pill pill-${verdictSlug(c.data.verdict)}`}>{c.data.verdict}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <script type="application/json" id="sb-data" set:html={JSON.stringify({ companies: payload, dims })} />
+      </>
+    )
+  }
+</section>
+
+<script>
+  const dataEl = document.getElementById('sb-data');
+  if (dataEl) {
+    const { companies, dims } = JSON.parse(dataEl.textContent || '{}');
+    const body = document.getElementById('sb-body')!;
+    const note = document.getElementById('sb-note')!;
+    const inputs = Array.from(document.querySelectorAll<HTMLInputElement>('#sb-sliders input[type=range]'));
+    const defaults: Record<string, number> = {};
+    dims.forEach((d: any) => (defaults[d.key] = d.weight));
+    const r2 = (x: number) => (Math.round(x * 100 + 1e-9) / 100).toFixed(2);
+    const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
+
+    function weights() {
+      const w: Record<string, number> = {};
+      inputs.forEach((i) => (w[i.dataset.key!] = Number(i.value)));
+      return w;
+    }
+    function score(scores: Record<string, number>, w: Record<string, number>) {
+      const total = Object.values(w).reduce((a, b) => a + b, 0) || 1;
+      return dims.reduce((s: number, d: any) => s + scores[d.key] * (w[d.key] / total), 0);
+    }
+    function render() {
+      const w = weights();
+      const total = Object.values(w).reduce((a, b) => a + b, 0) || 1;
+      inputs.forEach((i) => {
+        const el = document.getElementById('wv-' + i.dataset.key);
+        if (el) el.textContent = Math.round((Number(i.value) / total) * 100) + '%';
+      });
+      const base = [...companies].sort((a: any, b: any) => score(b.scores, defaults) - score(a.scores, defaults));
+      const baseRank: Record<string, number> = {};
+      base.forEach((c: any, i: number) => (baseRank[c.slug] = i + 1));
+      const ranked = companies
+        .map((c: any) => ({ c, s: score(c.scores, w) }))
+        .sort((a: any, b: any) => b.s - a.s);
+      let moved = 0;
+      body.innerHTML = ranked
+        .map(({ c, s }: any, i: number) => {
+          const delta = baseRank[c.slug] - (i + 1);
+          if (delta !== 0) moved++;
+          const arrow = delta > 0 ? `<span class="delta-up" title="Up ${delta} from default">▲${delta}</span>` : delta < 0 ? `<span class="delta-down" title="Down ${-delta} from default">▼${-delta}</span>` : '';
+          return `<tr><td class="rank-cell">${i + 1} ${arrow}</td><td><a href="${c.href}"><strong>${esc(c.name)}</strong></a></td><td><span class="cat"><i class="dot" style="background:${c.color}"></i>${esc(c.category)}</span></td><td class="num">${r2(s)} / 5</td><td><span class="pill pill-${c.vslug}">${esc(c.verdict)}</span></td></tr>`;
+        })
+        .join('');
+      const changed = inputs.some((i) => Number(i.value) !== defaults[i.dataset.key!]);
+      note.textContent = changed ? (moved ? `${moved} of ${companies.length} companies changed rank.` : 'No change in ranking with these weights.') : '';
+    }
+    inputs.forEach((i) => i.addEventListener('input', render));
+    document.getElementById('sb-reset')?.addEventListener('click', () => {
+      inputs.forEach((i) => (i.value = String(defaults[i.dataset.key!])));
+      render();
+    });
+  }
+</script>

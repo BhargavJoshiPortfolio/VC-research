@@ -1,0 +1,10 @@
+---
+import Base from '../layouts/Base.astro';
+import { url } from '../lib/url';
+---
+
+<Base title="Page not found">
+  <p class="eyebrow">404</p>
+  <h1>That page does not exist</h1>
+  <p class="lede">It may have moved. Try the <a href={url('/')}>home page</a> or the <a href={url('/companies/')}>list of companies</a>.</p>
+</Base>

@@ -1,0 +1,123 @@
+---
+import '@fontsource/inter/400.css';
+import '@fontsource/inter/500.css';
+import '@fontsource/inter/600.css';
+import '@fontsource/source-serif-4/600.css';
+import '@fontsource/source-serif-4/700.css';
+import '../styles/global.css';
+import { SITE, DISCLAIMER } from '../config';
+import { url } from '../lib/url';
+
+interface Props {
+  title?: string;
+  description?: string;
+  ogImage?: string; // path under /og/, e.g. "tellia.png"
+  bare?: boolean; // no site header/footer (used by the one-pager)
+  active?: string;
+}
+const { title, description = SITE.tagline, ogImage = 'default.png', bare = false, active = '' } = Astro.props;
+const fullTitle = title ? `${title} | ${SITE.name}` : SITE.name;
+const origin = Astro.site ? Astro.site.origin : Astro.url.origin;
+const ogUrl = `${origin}${url(`/og/${ogImage}`)}`;
+const pageUrl = `${origin}${Astro.url.pathname}`;
+
+const nav = [
+  { href: '/', label: 'Home', id: 'home' },
+  { href: '/methodology/', label: 'Methodology', id: 'methodology' },
+  { href: '/scorecard/', label: 'Scorecard', id: 'scorecard' },
+  { href: '/companies/', label: 'Companies', id: 'companies' },
+  { href: '/verdicts/', label: 'Verdicts', id: 'verdicts' },
+  { href: '/compare/', label: 'Compare', id: 'compare' },
+  { href: '/insights/', label: 'Insights', id: 'insights' },
+  { href: '/about/', label: 'About', id: 'about' },
+];
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{fullTitle}</title>
+    <meta name="description" content={description} />
+    {!SITE.indexable && <meta name="robots" content="noindex, nofollow" />}
+    <link rel="icon" href={url('/favicon.svg')} type="image/svg+xml" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={SITE.name} />
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={pageUrl} />
+    <meta property="og:image" content={ogUrl} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={fullTitle} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogUrl} />
+    <script is:inline>
+      (function () {
+        try {
+          var t = localStorage.getItem('theme');
+          if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body class={bare ? 'bare' : ''}>
+    {
+      !bare && (
+        <header class="site-header">
+          <div class="wrap header-inner">
+            <a class="brand" href={url('/')}>
+              <span class="brand-mark" aria-hidden="true" />
+              <span>{SITE.name}</span>
+            </a>
+            <nav aria-label="Main">
+              <ul class="nav">
+                {nav.map((n) => (
+                  <li>
+                    <a href={url(n.href)} aria-current={active === n.id ? 'page' : undefined}>
+                      {n.label}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+            <button class="theme-toggle" type="button" aria-label="Toggle light and dark theme" id="theme-toggle">
+              <span class="theme-icon" aria-hidden="true" />
+            </button>
+          </div>
+        </header>
+      )
+    }
+    <main class={bare ? '' : 'wrap'}>
+      <slot />
+    </main>
+    {
+      !bare && (
+        <footer class="site-footer">
+          <div class="wrap">
+            <p>{DISCLAIMER}</p>
+            <p class="muted">
+              {SITE.author} · <a href={url('/changelog/')}>Changelog</a> · Last built {new Date().toISOString().slice(0, 10)}
+              {SITE.aiDisclosure && <span> · {SITE.aiDisclosure}</span>}
+            </p>
+          </div>
+        </footer>
+      )
+    }
+    <script is:inline>
+      var b = document.getElementById('theme-toggle');
+      if (b)
+        b.addEventListener('click', function () {
+          var cur = document.documentElement.getAttribute('data-theme');
+          if (!cur) cur = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+          var next = cur === 'dark' ? 'light' : 'dark';
+          document.documentElement.setAttribute('data-theme', next);
+          try {
+            localStorage.setItem('theme', next);
+          } catch (e) {}
+        });
+    </script>
+  </body>
+</html>

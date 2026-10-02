@@ -1,0 +1,106 @@
+---
+import Base from '../layouts/Base.astro';
+import { allCompanies, clientData } from '../lib/companies';
+import { DIMENSIONS } from '../lib/dimensions';
+import { url } from '../lib/url';
+
+const companies = await allCompanies();
+const data = clientData(companies, url('').replace(/\/$/, ''));
+const dims = DIMENSIONS.map((d) => ({ key: d.key, label: d.label, short: d.short, weight: d.weight }));
+---
+
+<Base title="Compare" active="compare" description="Compare two companies side by side on the six scored criteria.">
+  <p class="eyebrow">Compare</p>
+  <h1>Two companies, side by side</h1>
+  <p class="lede">Pick two companies with a finished deep dive to overlay their scores and compare the verdicts.</p>
+
+  {
+    data.length < 2 ? (
+      <div class="card" style="margin-top:24px">
+        <p style="margin:0">
+          <strong>Comparison unlocks once two deep dives are published.</strong> {data.length} {data.length === 1 ? 'is' : 'are'} ready so far.
+          Meanwhile you can browse the <a href={url('/companies/')}>full shortlist</a>.
+        </p>
+      </div>
+    ) : (
+      <div id="cmp-root" style="margin-top:24px">
+        <div class="chips" style="margin-bottom:20px">
+          <label class="chip-label" for="cmp-a">First</label>
+          <select id="cmp-a" />
+          <label class="chip-label" for="cmp-b" style="min-width:auto;margin-left:12px">Second</label>
+          <select id="cmp-b" />
+        </div>
+        <div class="two-col">
+          <div class="card">
+            <div id="cmp-radar" />
+            <p class="legend" id="cmp-legend" style="justify-content:center" />
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Criterion</th><th id="th-a" /><th id="th-b" /></tr>
+              </thead>
+              <tbody id="cmp-body" />
+            </table>
+          </div>
+        </div>
+      </div>
+    )
+  }
+  <script type="application/json" id="cmp-data" set:html={JSON.stringify({ companies: data, dims })} />
+</Base>
+
+<script>
+  import { radarSVG } from '../lib/radar';
+  const raw = document.getElementById('cmp-data');
+  const root = document.getElementById('cmp-root');
+  if (raw && root) {
+    const { companies, dims } = JSON.parse(raw.textContent || '{}');
+    const selA = document.getElementById('cmp-a') as HTMLSelectElement;
+    const selB = document.getElementById('cmp-b') as HTMLSelectElement;
+    const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
+    for (const sel of [selA, selB]) sel.innerHTML = companies.map((c: any) => `<option value="${c.slug}">${esc(c.name)}</option>`).join('');
+    const params = new URLSearchParams(location.search);
+    const a0 = params.get('a');
+    const b0 = params.get('b');
+    selA.value = companies.some((c: any) => c.slug === a0) ? a0! : companies[0].slug;
+    selB.value = companies.some((c: any) => c.slug === b0 && c.slug !== selA.value) ? b0! : (companies.find((c: any) => c.slug !== selA.value) || companies[1]).slug;
+
+    const r2 = (x: number) => (Math.round(x * 100 + 1e-9) / 100).toFixed(2);
+    const colors = ['#1f4d3f', '#c07a1d'];
+    const weighted = (s: any) => dims.reduce((t: number, d: any) => t + s[d.key] * (d.weight / 100), 0);
+
+    function render() {
+      const a = companies.find((c: any) => c.slug === selA.value);
+      const b = companies.find((c: any) => c.slug === selB.value);
+      const vals = (c: any) => dims.map((d: any) => c.scores[d.key]);
+      document.getElementById('cmp-radar')!.innerHTML = radarSVG(
+        [
+          { label: a.name, values: vals(a), color: colors[0] },
+          { label: b.name, values: vals(b), color: colors[1] },
+        ],
+        { size: 380 },
+      );
+      document.getElementById('cmp-legend')!.innerHTML =
+        `<span><i class="dot" style="background:${colors[0]}"></i> ${esc(a.name)}</span><span><i class="dot" style="background:${colors[1]}"></i> ${esc(b.name)}</span>`;
+      document.getElementById('th-a')!.innerHTML = `<a href="${a.href}">${esc(a.name)}</a>`;
+      document.getElementById('th-b')!.innerHTML = `<a href="${b.href}">${esc(b.name)}</a>`;
+      const rows = dims.map((d: any) => {
+        const x = a.scores[d.key];
+        const y = b.scores[d.key];
+        const w = x > y ? 'style="font-weight:700"' : '';
+        const v = y > x ? 'style="font-weight:700"' : '';
+        return `<tr><td>${d.label} <span class="muted small">${d.weight}%</span></td><td class="num" ${w}>${x.toFixed(1)}</td><td class="num" ${v}>${y.toFixed(1)}</td></tr>`;
+      });
+      rows.push(`<tr><td><strong>Weighted score</strong></td><td class="num"><strong>${r2(weighted(a.scores))}</strong></td><td class="num"><strong>${r2(weighted(b.scores))}</strong></td></tr>`);
+      rows.push(`<tr><td>Verdict</td><td>${esc(a.verdict)}</td><td>${esc(b.verdict)}</td></tr>`);
+      rows.push(`<tr><td>Category</td><td>${esc(a.category)}</td><td>${esc(b.category)}</td></tr>`);
+      rows.push(`<tr><td>Round</td><td>${esc(a.round)}</td><td>${esc(b.round)}</td></tr>`);
+      rows.push(`<tr><td>HQ</td><td>${esc(a.hq)}</td><td>${esc(b.hq)}</td></tr>`);
+      document.getElementById('cmp-body')!.innerHTML = rows.join('');
+    }
+    selA.addEventListener('change', render);
+    selB.addEventListener('change', render);
+    render();
+  }
+</script>
