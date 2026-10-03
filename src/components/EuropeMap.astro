@@ -2,9 +2,9 @@
 import { geoConicConformal, geoPath } from 'd3-geo';
 import { feature } from 'topojson-client';
 import world from 'world-atlas/countries-50m.json';
-import { CATEGORIES, categoryColor } from '../lib/dimensions';
+import { CATEGORIES, categoryColor, fmt } from '../lib/dimensions';
+import { scoreOf, type Company } from '../lib/companies';
 import { url } from '../lib/url';
-import type { Company } from '../lib/companies';
 
 interface Props {
   companies: Company[];
@@ -13,7 +13,7 @@ const { companies } = Astro.props;
 
 const W = 760;
 const H = 520;
-// Europe viewport as a bounding polygon (lon/lat), used to fit the projection.
+// Europe viewport as a set of lon/lat points, used to fit the projection.
 // (A MultiPoint is used on purpose: d3 reads a clockwise Polygon as "everything outside the box".)
 const bbox: any = {
   type: 'MultiPoint',
@@ -26,7 +26,12 @@ const projection = geoConicConformal().rotate([-10, 0]).parallels([38, 60]).fitE
   ],
   bbox,
 );
-const path = geoPath(projection);
+// Clip outlines to the visible rectangle and round coordinates to one decimal place: this keeps the page small.
+projection.clipExtent([
+  [0, 0],
+  [W, H],
+]);
+const path = geoPath(projection).digits(1);
 const countries: any = feature(world as any, (world as any).objects.countries);
 const land = countries.features
   .map((f: any) => {
@@ -53,25 +58,41 @@ for (const c of companies) {
 }
 ---
 
-<figure class="map-figure">
-  <svg class="map" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Map of Europe showing the headquarters of each company on the list">
+<figure class="map-figure" data-map>
+  <svg class="map" viewBox={`0 0 ${W} ${H}`} role="group" aria-label="Map of Europe showing the headquarters of each company on the list. Hover or focus a dot for details.">
     <g>
       {land.map((d) => <path d={d} class="map-land" />)}
     </g>
     <g>
       {
-        placed.map(({ c, x, y }) => (
-          <a href={url(`/companies/${c.id}/`)}>
-            <title>{`${c.data.name}, ${c.data.hq.city}. ${c.data.offering}`}</title>
-            <circle cx={x.toFixed(1)} cy={y.toFixed(1)} r="7" fill={categoryColor(c.data.category)} class="map-dot" />
-            {c.data.status === 'thesis' && (
-              <circle cx={x.toFixed(1)} cy={y.toFixed(1)} r="11" class="map-ring" stroke={categoryColor(c.data.category)} />
-            )}
-          </a>
-        ))
+        placed.map(({ c, x, y }) => {
+          const s = scoreOf(c);
+          return (
+            <a
+              href={url(`/companies/${c.id}/`)}
+              class="map-pin"
+              aria-label={`${c.data.name}, ${c.data.hq.city}, ${c.data.hq.country}`}
+              data-name={c.data.name}
+              data-offering={c.data.offering}
+              data-place={`${c.data.hq.city}, ${c.data.hq.country}`}
+              data-sector={c.data.subsector}
+              data-round={`${c.data.round.label}, ${c.data.round.date}`}
+              data-color={categoryColor(c.data.category)}
+              data-status={c.data.verdict ? `${c.data.verdict}${s !== null ? ` · score ${fmt(s, 1)} / 5` : ''}` : 'Deep dive to come'}
+              data-done={c.data.verdict ? 'true' : 'false'}
+            >
+              <circle cx={x.toFixed(1)} cy={y.toFixed(1)} r="16" fill="transparent" />
+              <circle cx={x.toFixed(1)} cy={y.toFixed(1)} r="8" fill={categoryColor(c.data.category)} class="map-dot" />
+              {c.data.status === 'thesis' && (
+                <circle cx={x.toFixed(1)} cy={y.toFixed(1)} r="12" class="map-ring" stroke={categoryColor(c.data.category)} />
+              )}
+            </a>
+          );
+        })
       }
     </g>
   </svg>
+  <div class="map-tip" role="tooltip" hidden></div>
   <figcaption class="small muted">
     <span class="legend">
       {
@@ -83,5 +104,78 @@ for (const c of companies) {
       }
       <span><i class="dot" style="background:transparent;border:2px solid var(--muted)" /> Ringed: deep dive published</span>
     </span>
+    <span class="map-hint">Hover or tap a dot for details.</span>
   </figcaption>
 </figure>
+
+<script>
+  document.querySelectorAll<HTMLElement>('[data-map]').forEach((fig) => {
+    const tip = fig.querySelector<HTMLElement>('.map-tip')!;
+    const pins = Array.from(fig.querySelectorAll<SVGAElement>('.map-pin'));
+    const touchOnly = window.matchMedia('(hover: none)').matches;
+    let current: SVGAElement | null = null;
+
+    function el(tag: string, cls: string, text?: string) {
+      const e = document.createElement(tag);
+      e.className = cls;
+      if (text !== undefined) e.textContent = text;
+      return e;
+    }
+
+    function show(pin: SVGAElement) {
+      current = pin;
+      const d = pin.dataset;
+      tip.replaceChildren();
+      const head = el('div', 'tip-head');
+      const dot = el('i', 'dot');
+      dot.style.background = d.color || '#777';
+      head.append(dot, el('strong', 'tip-name', d.name));
+      tip.append(
+        head,
+        el('div', 'tip-offer', d.offering),
+        el('div', 'tip-line', d.place),
+        el('div', 'tip-line', d.sector),
+        el('div', 'tip-line', d.round),
+        el('div', d.done === 'true' ? 'tip-status tip-done' : 'tip-status', d.status),
+        el('div', 'tip-cta', 'Open company page →'),
+      );
+      tip.hidden = false;
+      const f = fig.getBoundingClientRect();
+      const c = pin.querySelector('.map-dot')!.getBoundingClientRect();
+      const cx = c.left + c.width / 2 - f.left;
+      const cy = c.top - f.top;
+      const w = tip.offsetWidth;
+      const h = tip.offsetHeight;
+      let left = Math.min(Math.max(cx - w / 2, 4), f.width - w - 4);
+      let top = cy - h - 12;
+      if (top < 4) top = c.bottom - f.top + 12;
+      tip.style.left = `${left}px`;
+      tip.style.top = `${top}px`;
+      pins.forEach((p) => p.classList.toggle('is-active', p === pin));
+    }
+
+    function hide() {
+      current = null;
+      tip.hidden = true;
+      pins.forEach((p) => p.classList.remove('is-active'));
+    }
+
+    pins.forEach((pin) => {
+      pin.addEventListener('mouseenter', () => show(pin));
+      pin.addEventListener('mouseleave', hide);
+      pin.addEventListener('focus', () => show(pin));
+      pin.addEventListener('blur', hide);
+      // On touch screens the first tap shows the card; a second tap follows the link.
+      pin.addEventListener('click', (e) => {
+        if (touchOnly && current !== pin) {
+          e.preventDefault();
+          show(pin);
+        }
+      });
+    });
+    document.addEventListener('keydown', (e) => e.key === 'Escape' && hide());
+    document.addEventListener('click', (e) => {
+      if (!(e.target as Element).closest('.map-pin')) hide();
+    });
+  });
+</script>
